@@ -9,7 +9,7 @@
 # Usage: bash install.sh
 ################################################################################
 
-set -euo pipefail
+set -eo pipefail
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -106,9 +106,17 @@ interactive_service_selection() {
     local current_index=0
     
     while true; do
-        # Display menu with current selection
+        # Clear previous output
+        clear
+        print_header
+        
         echo -e "${YELLOW}Use arrow keys to navigate, spacebar to select, Enter to confirm:${RESET}"
         echo ""
+        
+        # Draw selection box
+        echo "┌────────────────────────────────────────────────────────────┐"
+        echo "│ Choose Services:                                           │"
+        echo "├────────────────────────────────────────────────────────────┤"
         
         for i in "${!services_array[@]}"; do
             local service="${services_array[$i]}"
@@ -123,29 +131,31 @@ interactive_service_selection() {
             
             if [[ $i -eq $current_index ]]; then
                 if $is_selected; then
-                    echo -e "${GREEN}❯ [✓] ${SERVICES[$service]}${RESET}"
+                    printf "│ ${GREEN}❯ [✓] %-50s${RESET}│\n" "${SERVICES[$service]}"
                 else
-                    echo -e "${BLUE}❯ [ ] ${SERVICES[$service]}${RESET}"
+                    printf "│ ${BLUE}❯ [ ] %-50s${RESET}│\n" "${SERVICES[$service]}"
                 fi
             else
                 if $is_selected; then
-                    echo -e "  ${GREEN}[✓] ${SERVICES[$service]}${RESET}"
+                    printf "│   ${GREEN}[✓] %-50s${RESET}│\n" "${SERVICES[$service]}"
                 else
-                    echo "  [ ] ${SERVICES[$service]}"
+                    printf "│   [ ] %-50s│\n" "${SERVICES[$service]}"
                 fi
             fi
         done
         
+        echo "├────────────────────────────────────────────────────────────┤"
+        printf "│ Selected: %-52s│\n" "${SELECTED_SERVICES[*]:-None}"
+        echo "└────────────────────────────────────────────────────────────┘"
         echo ""
-        echo -e "${YELLOW}Selected services: ${SELECTED_SERVICES[*]:-None}${RESET}"
         
         # Read single key input
         local key
-        read -rsn1 key
+        read -rsn1 key 2>/dev/null || key=""
         
         case "$key" in
             $'\x1b')  # Arrow key pressed
-                read -rsn2 key  # Read the rest of the arrow key
+                read -rsn2 key 2>/dev/null || key=""
                 case "$key" in
                     '[A')  # Up arrow
                         ((current_index--))
@@ -187,14 +197,12 @@ interactive_service_selection() {
             '')  # Enter key
                 if [[ ${#SELECTED_SERVICES[@]} -eq 0 ]]; then
                     echo -e "${RED}Please select at least one service${RESET}"
-                    continue
+                    sleep 1
+                else
+                    break
                 fi
-                break
                 ;;
         esac
-        
-        # Clear screen for redraw
-        clear
     done
 }
 
