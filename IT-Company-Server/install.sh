@@ -27,19 +27,18 @@ RESET='\033[0m'
 
 # Services for IT Company Server: business-focused infrastructure
 declare -A SERVICES=(
-    [tailscale]="Tailscale - Secure WireGuard-based VPN"
-    [docker]="Docker - Container platform for applications"
-    [samba]="Samba - Windows-compatible file server"
-    [nginx]="Nginx - Reverse proxy and web server"
-    [netdata]="Netdata - Real-time system monitoring"
+    [myspeed]="MySpeed - Speed test application"
+    [wikijs]="Wiki.js - Modern wiki platform"
 )
 
 declare -A SERVICE_DESCRIPTIONS=(
-    [tailscale]="Connect remote offices securely. Encrypted mesh network without port forwarding."
-    [docker]="Run containerized applications for consistent deployment across environments."
-    [samba]="Share folders with Windows/macOS/Linux clients. AD integration available."
-    [nginx]="Load balance, reverse proxy, and secure internal web services."
-    [netdata]="Monitor CPU, disk, memory, network in real-time with beautiful dashboards."
+    [myspeed]="Speed testing tool for network diagnostics."
+    [wikijs]="Modern, lightweight wiki platform for documentation."
+)
+
+declare -A SERVICE_COMMANDS=(
+    [myspeed]='bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/myspeed.sh)"'
+    [wikijs]='bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/wikijs.sh)"'
 )
 
 declare -a SELECTED_SERVICES=()
@@ -83,21 +82,7 @@ check_prerequisites() {
     echo -e "${GREEN}✓ Prerequisites met${RESET}"
 }
 
-# Displays service information before selection
-show_service_info() {
-    clear
-    print_header
-    echo -e "${BLUE}=== Available Services ===${RESET}"
-    echo ""
-    
-    for service in "${!SERVICE_DESCRIPTIONS[@]}"; do
-        echo -e "${BLUE}• ${SERVICES[$service]}${RESET}"
-        echo "  ${SERVICE_DESCRIPTIONS[$service]}"
-        echo ""
-    done
-    
-    sleep 2
-}
+
 
 # Uses whiptail to present an interactive checklist for service selection
 interactive_service_selection() {
@@ -106,6 +91,9 @@ interactive_service_selection() {
                           "--checklist" \
                           "Use SPACE to select, ENTER to confirm" \
                           "20" "70" "10")
+    
+    # Add ALL option at the beginning
+    checklist_args+=("ALL" "Select all services" "OFF")
     
     for service in "${!SERVICES[@]}"; do
         checklist_args+=("$service" "${SERVICES[$service]}" "OFF")
@@ -124,7 +112,14 @@ interactive_service_selection() {
     # Parse selected services
     SELECTED_SERVICES=()
     while IFS= read -r service; do
-        SELECTED_SERVICES+=("$service")
+        # If ALL is selected, add all services
+        if [[ "$service" == "ALL" ]]; then
+            for svc in "${!SERVICES[@]}"; do
+                SELECTED_SERVICES+=("$svc")
+            done
+        else
+            SELECTED_SERVICES+=("$service")
+        fi
     done <<< "$(echo "$choices" | tr ' ' '\n' | grep -v '^$')"
     
     if [[ ${#SELECTED_SERVICES[@]} -eq 0 ]]; then
@@ -145,25 +140,8 @@ interactive_service_selection() {
 
 # Prints available services with their descriptions and numbering
 show_service_menu() {
-    echo ""
-    echo -e "${BLUE}Available Services:${RESET}"
-    echo ""
-    
-    local i=1
-    for service in "${!SERVICES[@]}"; do
-        echo "  [$i] ${SERVICES[$service]}"
-        i=$((i + 1))
-    done
-    
-    echo ""
-    echo -e "${YELLOW}Service Descriptions:${RESET}"
-    echo ""
-    
-    for service in "${!SERVICE_DESCRIPTIONS[@]}"; do
-        echo -e "${BLUE}• ${SERVICES[$service]}${RESET}"
-        echo "  ${SERVICE_DESCRIPTIONS[$service]}"
-        echo ""
-    done
+    # Service listing removed - only code essential functionality
+    return 0
 }
 
 # Loops through selected services and executes their individual installation scripts
@@ -178,16 +156,8 @@ deploy_services() {
         echo ""
         echo -e "${BLUE}[$current/$total] Installing ${SERVICES[$service]}...${RESET}"
         
-        local service_script="$(cd "$SCRIPT_DIR" && cd .. && pwd)/scripts/services/${service}.sh"
-        
-        if [[ ! -f "$service_script" ]]; then
-            echo -e "${RED}Error: Service script not found: $service_script${RESET}"
-            ((current++))
-            continue
-        fi
-        
-        # Execute service installation (Proxmox Community Scripts handle all configuration)
-        if bash "$service_script"; then
+        # Execute service installation using the command from SERVICE_COMMANDS
+        if eval "${SERVICE_COMMANDS[$service]}"; then
             echo -e "${GREEN}✓ ${SERVICES[$service]} installed successfully${RESET}"
         else
             echo -e "${RED}✗ Failed to install ${SERVICES[$service]}${RESET}"
@@ -201,7 +171,6 @@ deploy_services() {
 main() {
     print_header
     check_prerequisites
-    show_service_info
     interactive_service_selection
     deploy_services
     
